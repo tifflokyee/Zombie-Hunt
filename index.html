@@ -103,7 +103,7 @@
 
       <div class="mt-8 bg-zinc-900 rounded-3xl p-6">
         <h3 class="text-2xl font-bold mb-4">Campus Outbreak Map</h3>
-        <p class="text-zinc-400 mb-4">21 infected zones are active. Scan the QR at each place to reveal the zombie waiting there.</p>
+        <p class="text-zinc-400 mb-4">Scan any QR code around campus to hunt the Library Sloucher!</p>
         <div id="qr-help" class="grid md:grid-cols-2 gap-3 text-sm"></div>
       </div>
     </div>
@@ -140,7 +140,7 @@
       </div>
     </div>
 
-    <!-- SUCCESS / CONGRATULATIONS SCREEN -->
+    <!-- SUCCESS SCREEN -->
     <div id="success-screen" class="hidden fixed inset-0 bg-black/95 z-[70] flex items-center justify-center">
       <div class="text-center max-w-md px-6">
         <div id="success-emoji" class="text-8xl mb-6"></div>
@@ -193,7 +193,6 @@
   <div id="toast-message" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-black font-bold px-6 py-4 rounded-2xl shadow-2xl smooth-panel"></div>
 
   <script>
-    // ... (All variables and constants remain the same)
     const PLAYER_NAME_KEY = "zombiePlayerName";
     const POINTS_KEY = "zombiePoints";
     const CAUGHT_KEY = "zombiesCaught";
@@ -210,8 +209,18 @@
     let scanLocked = false;
     let aiInterval = null;
 
-    const zombieMap = { /* ... same as before ... */
-      "main library": { place: "Main Library", name: "📚 Main Library Sloucher", emoji: "🧟‍♀️📚", quest: "20 shoulder rolls + neck stretches" },
+    // ==================== ALL QR CODES NOW SHOW LIBRARY ZOMBIE ====================
+    const libraryZombie = {
+      id: "main library",
+      place: "Main Library",
+      name: "📚 Main Library Sloucher",
+      emoji: "🧟‍♀️📚",
+      quest: "20 shoulder rolls + neck stretches"
+    };
+
+    const zombieMap = {
+      "main library": libraryZombie,
+      // All other zombies are kept for collection/leaderboard but not triggered by QR
       "knowles": { place: "Knowles Building", name: "🏛️ Knowles Building Ghoul", emoji: "🧟‍♂️🏛️", quest: "10 wall sits" },
       "chi wah": { place: "Chi Wah Hall", name: "🏫 Chi Wah Hall Walker", emoji: "🧟‍♀️🏫", quest: "March in place for 30 seconds" },
       "university street": { place: "University Street", name: "🛣️ University Street Shambler", emoji: "🧟‍♂️🛣️", quest: "Walk up the stairs" },
@@ -235,8 +244,8 @@
     };
 
     const qrAliases = {
-      "https://qrly.org/ugyjc7": "library",
-      "https://qrly.org/mptbcu": "library"
+      "https://qrly.org/ugyjc7": "main library",
+      "https://qrly.org/mptbcu": "main library"
     };
 
     function safeJsonParse(value, fallback) {
@@ -326,22 +335,11 @@
       if (scanLocked) return;
       scanLocked = true;
 
-      const zombieId = getZombieIdFromQr(decodedText);
-      if (!zombieId) {
-        setScannerStatus(`Unknown QR code: ${decodedText}`);
-        scanLocked = false;
-        return;
-      }
+      // Force every QR code to trigger the Library Sloucher
+      const zombieId = "main library";
 
       await stopScanner();
       showSpecificZombie(zombieId);
-    }
-
-    function getZombieIdFromQr(text) {
-      const normalized = String(text || "").trim().toLowerCase();
-      if (qrAliases[normalized]) return qrAliases[normalized];
-      if (zombieMap[normalized]) return normalized;
-      return Object.keys(zombieMap).find(key => normalized.includes(key)) || "main library";
     }
 
     function showSpecificZombie(zombieId) {
@@ -349,7 +347,11 @@
       currentZombieId = zombieId;
       currentFriendName = "";
 
-      document.getElementById("zombie-reveal").innerHTML = `<div class="zombie-figure mx-auto flex items-center justify-center">${zombie.emoji}</div>`;
+      document.getElementById("zombie-reveal").innerHTML = `
+        <div class="zombie-figure mx-auto flex items-center justify-center">
+          ${zombie.emoji}
+        </div>
+      `;
       document.getElementById("zombie-name").textContent = zombie.name;
       document.getElementById("quest-text").textContent = zombie.quest;
       document.getElementById("qr-id-text").textContent = `QR ID: ${zombieId}`;
@@ -375,6 +377,7 @@
       }
     }
 
+    // The rest of the functions remain the same (startMovementCheck, finishMovementCheck, success screen, etc.)
     function startMovementCheck() {
       document.getElementById("camera-screen").classList.remove("hidden");
       const video = document.getElementById("video");
@@ -397,21 +400,21 @@
       const progressBar = document.getElementById("ai-progress");
       let progress = 0;
       progressBar.style.width = "0%";
-
+      
       const messages = ["Detecting human pose...", "Analyzing joint angles...", "Checking movement quality...", "Evaluating form...", "Zombie virus resistance: Calculating..."];
       let msgIndex = 0;
-
+      
       if (aiInterval) clearInterval(aiInterval);
-
+      
       aiInterval = setInterval(() => {
         progress += Math.random() * 18 + 8;
         if (progress > 100) progress = 100;
         progressBar.style.width = `${progress}%`;
-
+        
         if (progress > 25 && msgIndex === 0) { statusText.textContent = messages[1]; msgIndex = 1; }
         else if (progress > 50 && msgIndex === 1) { statusText.textContent = messages[2]; msgIndex = 2; }
         else if (progress > 75 && msgIndex === 2) { statusText.textContent = messages[3]; msgIndex = 3; }
-
+        
         if (progress >= 100) clearInterval(aiInterval);
       }, 420);
     }
@@ -435,7 +438,6 @@
       document.getElementById("points-display").textContent = `${totalPoints} pts`;
 
       document.getElementById("camera-screen").classList.add("hidden");
-
       showSuccessScreen();
     }
 
@@ -453,7 +455,6 @@
 
       document.getElementById("success-screen").classList.remove("hidden");
 
-      // Save the catch
       zombiesCaught.push({
         id: currentZombieId,
         name: zombie.name,
@@ -470,19 +471,14 @@
     function continueHunting() {
       document.getElementById("success-screen").classList.add("hidden");
       currentFriendName = "";
-      setTimeout(() => {
-        startScanner();           // Go back to scanning
-      }, 300);
+      setTimeout(() => startScanner(), 300);
     }
 
     function leaveToMain() {
       document.getElementById("success-screen").classList.add("hidden");
       currentFriendName = "";
-      
-      // Stop scanner if running and go back to main view (no camera)
       stopScanner();
       document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
-      // Optionally show a welcome message or just stay on the button bar
       showToast("Returned to main menu. Ready for next hunt!");
     }
 
@@ -560,12 +556,11 @@
 
     function renderQrHelp() {
       const help = document.getElementById("qr-help");
-      help.innerHTML = Object.entries(zombieMap).map(([id, zombie]) => `
-        <div class="smooth-panel bg-black/40 rounded-2xl p-4">
-          <div class="font-bold text-green-400">${zombie.place}</div>
-          <div class="text-xl font-bold">${zombie.name}</div>
-        </div>
-      `).join("");
+      help.innerHTML = `<div class="smooth-panel bg-black/40 rounded-2xl p-4 text-center">
+        <div class="font-bold text-green-400">Main Library</div>
+        <div class="text-xl font-bold">📚 Main Library Sloucher</div>
+        <p class="text-sm text-zinc-400 mt-2">All QR codes lead here during demo</p>
+      </div>`;
     }
 
     function setScannerStatus(message) {
