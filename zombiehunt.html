@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zombie Hunt - Survive the Campus Outbreak</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Creepster&display=swap');
+    
+    .zombie-title { font-family: 'Creepster', cursive; }
+    .smooth-panel { animation: smoothRise 0.35s ease-out; }
+    
+    button { 
+      transition: transform 0.2s ease, background-color 0.2s ease, opacity 0.2s ease; 
+    }
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(1px) scale(0.99); }
+
+    @keyframes zombiePop {
+      0% { transform: scale(0.3) rotate(-20deg); }
+      50% { transform: scale(1.2) rotate(10deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    @keyframes smoothRise {
+      0% { opacity: 0; transform: translateY(14px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+      animation: spin-slow 3s linear infinite;
+    }
+    .animate-spin-slow-reverse {
+      animation: spin-slow 2.2s linear infinite reverse;
+    }
+
+    .zombie-figure {
+      display: inline-block;
+      font-size: 7rem;
+      background: linear-gradient(135deg, #1f2937, #111827);
+      padding: 20px 30px;
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(134, 239, 172, 0.3);
+      border: 8px solid #86efac;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen">
+
+  <!-- REGISTRATION -->
+  <div id="register-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+    <div class="bg-zinc-900 rounded-3xl p-10 max-w-md w-full mx-4 text-center">
+      <h1 class="zombie-title text-6xl text-green-400 mb-8">ZOMBIE HUNT</h1>
+      <h2 class="text-3xl mb-8">Enter your survivor name</h2>
+      <input id="player-name" type="text" placeholder="Your name"
+             class="w-full bg-zinc-800 px-8 py-6 rounded-3xl text-2xl text-center focus:outline-none focus:ring-4 focus:ring-green-500 mb-8">
+      <button onclick="registerPlayer()"
+              class="w-full bg-green-500 text-black font-bold text-2xl py-6 rounded-3xl">START SURVIVING</button>
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto px-6 py-8">
+    <div class="flex justify-between items-center mb-8">
+      <div class="flex items-center gap-4">
+        <i class="fa-solid fa-skull text-5xl text-green-400"></i>
+        <h1 class="zombie-title text-5xl">ZOMBIE HUNT</h1>
+      </div>
+      <div class="text-right">
+        <div id="player-display" class="text-xl"></div>
+        <div id="points-display" class="text-4xl font-bold text-green-400"></div>
+        <button onclick="openRegisterModal()" class="mt-2 text-sm text-green-400 underline">Switch player</button>
+      </div>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-4 mb-10">
+      <button onclick="showPage('scan')" class="flex-1 py-5 bg-green-600 rounded-3xl font-bold text-xl">SCAN QR</button>
+      <button onclick="showPage('collection')" class="flex-1 py-5 bg-zinc-800 rounded-3xl font-bold text-xl">COLLECTION</button>
+      <button onclick="showPage('leaderboard')" class="flex-1 py-5 bg-zinc-800 rounded-3xl font-bold text-xl">LEADERBOARD</button>
+    </div>
+
+    <!-- SCAN PAGE -->
+    <div id="page-scan" class="page">
+      <h2 class="text-4xl font-bold text-center mb-8">Scan a Campus QR Code</h2>
+      <div id="reader" class="mx-auto max-w-md border-4 border-green-500 rounded-3xl overflow-hidden mb-4"></div>
+      <p id="scanner-status" class="text-center text-zinc-400 mb-8">Camera ready. Scan a zombie QR code.</p>
+
+      <div id="scan-result" class="hidden smooth-panel bg-black border-2 border-green-500 rounded-3xl p-8 text-center">
+        <div id="zombie-reveal" class="zombie-figure mx-auto"></div>
+        <h3 id="zombie-name" class="text-4xl font-bold mb-3 mt-6"></h3>
+        <p id="quest-text" class="text-xl mb-4 text-zinc-300"></p>
+        <p id="qr-id-text" class="text-sm uppercase tracking-[0.3em] text-green-400 mb-8"></p>
+
+        <div class="flex gap-4 mt-8">
+          <button onclick="doSoloMove()" class="flex-1 bg-blue-600 py-6 rounded-3xl text-xl font-bold">Solo</button>
+          <button onclick="doGroupMove()" class="flex-1 bg-purple-600 py-6 rounded-3xl text-xl font-bold">With Friend</button>
+        </div>
+      </div>
+
+      <div class="mt-8 bg-zinc-900 rounded-3xl p-6">
+        <h3 class="text-2xl font-bold mb-4">Campus Outbreak Map</h3>
+        <p class="text-zinc-400 mb-4">21 infected zones are active. Scan the QR at each place to reveal the zombie waiting there.</p>
+        <div id="qr-help" class="grid md:grid-cols-2 gap-3 text-sm"></div>
+      </div>
+    </div>
+
+    <!-- AI CAMERA SCREEN -->
+    <div id="camera-screen" class="hidden fixed inset-0 bg-black z-[60] flex flex-col">
+      <div class="flex-1 relative flex items-center justify-center bg-zinc-950">
+        <video id="video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div class="relative w-80 h-80 border-4 border-green-400/70 rounded-3xl overflow-hidden">
+            <div class="absolute inset-0 border-4 border-transparent border-t-green-400 animate-spin-slow"></div>
+            <div class="absolute inset-0 border-4 border-transparent border-b-green-400 animate-spin-slow-reverse"></div>
+            
+            <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/80 px-8 py-3 rounded-2xl text-center w-72">
+              <div class="flex items-center justify-center gap-3 text-green-400">
+                <i class="fa-solid fa-brain animate-pulse"></i>
+                <span id="ai-status-text" class="font-bold tracking-widest text-lg">AI ANALYZING MOVEMENT...</span>
+              </div>
+              <div id="ai-progress" class="h-1.5 bg-green-500 mt-3 rounded-full w-0 transition-all duration-300"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-zinc-900 border-t-4 border-green-500 p-6">
+        <div class="text-center text-zinc-400 mb-4 text-sm tracking-widest">
+          PERFORM THE MOVEMENT CLEARLY IN FRAME
+        </div>
+        <button onclick="finishMovementCheck()" 
+                class="w-full bg-green-500 hover:bg-green-400 transition-colors text-black font-bold text-2xl py-6 rounded-3xl flex items-center justify-center gap-3">
+          <i class="fa-solid fa-check-circle"></i>
+          I'M DONE WITH THE MOVE
+        </button>
+      </div>
+    </div>
+
+    <!-- SUCCESS / CONGRATULATIONS SCREEN -->
+    <div id="success-screen" class="hidden fixed inset-0 bg-black/95 z-[70] flex items-center justify-center">
+      <div class="text-center max-w-md px-6">
+        <div id="success-emoji" class="text-8xl mb-6"></div>
+        <h2 class="zombie-title text-5xl text-green-400 mb-4">ZOMBIE DEFEATED!</h2>
+        <h3 id="success-zombie-name" class="text-3xl font-bold mb-2"></h3>
+        <p id="success-friend" class="text-purple-400 text-xl mb-8"></p>
+        
+        <div class="bg-zinc-900 rounded-3xl p-8 mb-10">
+          <p class="text-4xl text-green-400 font-bold" id="success-points"></p>
+        </div>
+
+        <div class="flex flex-col gap-4">
+          <button onclick="continueHunting()" 
+                  class="w-full bg-green-500 text-black font-bold text-2xl py-6 rounded-3xl flex items-center justify-center gap-3">
+            <i class="fa-solid fa-crosshairs"></i>
+            CONTINUE HUNTING
+          </button>
+          
+          <button onclick="leaveToMain()" 
+                  class="w-full bg-zinc-700 hover:bg-zinc-600 transition-colors font-bold text-2xl py-6 rounded-3xl">
+            LEAVE &amp; GO BACK TO MAIN
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLLECTION -->
+    <div id="page-collection" class="page hidden">
+      <h2 class="text-4xl font-bold text-center mb-10">My Zombie Collection</h2>
+      <div id="collection-grid" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div id="page-leaderboard" class="page hidden">
+      <h2 class="text-4xl font-bold text-center mb-10">Survivor Leaderboard</h2>
+      <table class="w-full text-left bg-zinc-900 rounded-3xl overflow-hidden">
+        <thead class="bg-zinc-800">
+          <tr>
+            <th class="py-6 px-8">Rank</th>
+            <th class="py-6 px-8">Player</th>
+            <th class="py-6 px-8">Points</th>
+            <th class="py-6 px-8">Zombies</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body" class="text-zinc-300"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="toast-message" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-black font-bold px-6 py-4 rounded-2xl shadow-2xl smooth-panel"></div>
+
+  <script>
+    // ... (All variables and constants remain the same)
+    const PLAYER_NAME_KEY = "zombiePlayerName";
+    const POINTS_KEY = "zombiePoints";
+    const CAUGHT_KEY = "zombiesCaught";
+    const LEADERBOARD_KEY = "zombieLeaderboardUsers";
+
+    let playerName = "";
+    let totalPoints = 0;
+    let zombiesCaught = [];
+    let currentZombieId = "";
+    let currentFriendName = "";
+    let pointsEarnedThisTime = 0;
+    let html5QrCode = null;
+    let scannerRunning = false;
+    let scanLocked = false;
+    let aiInterval = null;
+
+    const zombieMap = { /* ... same as before ... */
+      "main library": { place: "Main Library", name: "📚 Main Library Sloucher", emoji: "🧟‍♀️📚", quest: "20 shoulder rolls + neck stretches" },
+      "knowles": { place: "Knowles Building", name: "🏛️ Knowles Building Ghoul", emoji: "🧟‍♂️🏛️", quest: "10 wall sits" },
+      "chi wah": { place: "Chi Wah Hall", name: "🏫 Chi Wah Hall Walker", emoji: "🧟‍♀️🏫", quest: "March in place for 30 seconds" },
+      "university street": { place: "University Street", name: "🛣️ University Street Shambler", emoji: "🧟‍♂️🛣️", quest: "Walk up the stairs" },
+      "eliot hall": { place: "Eliot Hall", name: "🏠 Eliot Hall Lurker", emoji: "🧟‍♀️🏠", quest: "10 jumping jacks" },
+      "swire hall": { place: "Swire Hall", name: "🏛️ Swire Hall Craver", emoji: "🧟🍜", quest: "15 squats" },
+      "run run shaw": { place: "Run Run Shaw Tower", name: "🎥 Run Run Shaw Tower Zombie", emoji: "🧟‍♂️🎥", quest: "60-second standing stretches" },
+      "kk leung": { place: "K.K. Leung Building", name: "🏢 K.K. Leung Building Rotter", emoji: "🧟‍♀️🏢", quest: "Seated leg lifts" },
+      "fong shu chuen": { place: "Fong Shu Chuen Amenities Centre", name: "🏟️ Fong Shu Chuen Ghoul", emoji: "🧟🏟️", quest: "High-five a friend + arm circles" },
+      "gym": { place: "University Gym", name: "🏋️ University Gym Walker", emoji: "🧟🏋️", quest: "10 push-ups (knee version OK)" },
+      "canteen": { place: "University Canteen", name: "🍜 University Canteen Craver", emoji: "🧟🍜", quest: "15 squats while waiting" },
+      "lecture theatre": { place: "Lecture Theatre", name: "📽️ Lecture Theatre Lurker", emoji: "🧟‍♂️📽️", quest: "Stand up and stretch both arms" },
+      "student union": { place: "Student Union", name: "🏛️ Student Union Zombie", emoji: "🧟‍♀️🏛️", quest: "Dance for 30 seconds" },
+      "bookstore": { place: "University Bookstore", name: "📖 Bookstore Browser", emoji: "🧟📖", quest: "20 neck stretches" },
+      "mtr exit": { place: "HKU MTR Station Exit", name: "🚇 HKU Station Zombie", emoji: "🧟🚇", quest: "March in place for 30 seconds" },
+      "pok fu lam": { place: "Pok Fu Lam Road", name: "🌳 Pok Fu Lam Road Walker", emoji: "🧟🌳", quest: "Walk up the slope" },
+      "graduate house": { place: "Graduate House", name: "🏠 Graduate House Ghoul", emoji: "🧟🏠", quest: "Deep breathing + shoulder rolls" },
+      "health service": { place: "University Health Service", name: "🏥 University Health Service Zombie", emoji: "🧟🏥", quest: "60-second breathing exercise" },
+      "centennial": { place: "Centennial College", name: "🏫 Centennial College Walker", emoji: "🧟‍♂️🏫", quest: "Climb one flight of stairs" },
+      "podium": { place: "Main Podium", name: "🪜 Main Podium Shambler", emoji: "🧟‍♀️🪜", quest: "Walk up 2 flights of stairs" },
+      "ccst9075 lecture hall": { place: "CCST9075 Lecture Hall", name: "Lecture Hall Lurker", emoji: "🧟‍♂️📚", quest: "Stand up, stretch both arms, then do 10 careful squats" }
+    };
+
+    const qrAliases = {
+      "https://qrly.org/ugyjc7": "library",
+      "https://qrly.org/mptbcu": "ccst9075 lecture hall"
+    };
+
+    function safeJsonParse(value, fallback) {
+      try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
+    }
+
+    function loadGame() {
+      playerName = localStorage.getItem(PLAYER_NAME_KEY) || "";
+      totalPoints = parseInt(localStorage.getItem(POINTS_KEY), 10) || 0;
+      zombiesCaught = safeJsonParse(localStorage.getItem(CAUGHT_KEY), []);
+
+      renderQrHelp();
+      updateCollection();
+      updateLeaderboard();
+
+      if (!playerName) {
+        document.getElementById("register-modal").classList.remove("hidden");
+      } else {
+        document.getElementById("register-modal").classList.add("hidden");
+        updatePlayerDisplay();
+        saveCurrentPlayerToLeaderboard();
+        startScanner();
+      }
+    }
+
+    function openRegisterModal() {
+      document.getElementById("player-name").value = "";
+      document.getElementById("register-modal").classList.remove("hidden");
+      document.getElementById("player-name").focus();
+    }
+
+    function registerPlayer() {
+      const name = document.getElementById("player-name").value.trim();
+      if (!name) return;
+
+      if (playerName) saveCurrentPlayerToLeaderboard();
+
+      playerName = name;
+      const savedPlayer = getLeaderboardUsers().find((user) => user.name.toLowerCase() === playerName.toLowerCase());
+      totalPoints = savedPlayer ? Number(savedPlayer.points) || 0 : 0;
+      zombiesCaught = savedPlayer ? savedPlayer.zombiesCaught || [] : [];
+
+      localStorage.setItem(PLAYER_NAME_KEY, playerName);
+      localStorage.setItem(POINTS_KEY, totalPoints);
+      localStorage.setItem(CAUGHT_KEY, JSON.stringify(zombiesCaught));
+      saveCurrentPlayerToLeaderboard();
+
+      document.getElementById("register-modal").classList.add("hidden");
+      updatePlayerDisplay();
+      updateCollection();
+      updateLeaderboard();
+      startScanner();
+    }
+
+    function updatePlayerDisplay() {
+      document.getElementById("player-display").textContent = playerName ? `Player: ${playerName}` : "";
+      document.getElementById("points-display").textContent = `${totalPoints} pts`;
+    }
+
+    async function startScanner() {
+      document.getElementById("scan-result").classList.add("hidden");
+      setScannerStatus("Camera ready. Scan a zombie QR code.");
+      scanLocked = false;
+
+      if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 260, height: 260 } },
+          handleQrSuccess
+        );
+        scannerRunning = true;
+      } catch (error) {
+        setScannerStatus("Camera error. Please allow camera access.");
+      }
+    }
+
+    async function stopScanner() {
+      if (html5QrCode && scannerRunning) {
+        try { await html5QrCode.stop(); await html5QrCode.clear(); } catch {}
+        scannerRunning = false;
+      }
+    }
+
+    async function handleQrSuccess(decodedText) {
+      if (scanLocked) return;
+      scanLocked = true;
+
+      const zombieId = getZombieIdFromQr(decodedText);
+      if (!zombieId) {
+        setScannerStatus(`Unknown QR code: ${decodedText}`);
+        scanLocked = false;
+        return;
+      }
+
+      await stopScanner();
+      showSpecificZombie(zombieId);
+    }
+
+    function getZombieIdFromQr(text) {
+      const normalized = String(text || "").trim().toLowerCase();
+      if (qrAliases[normalized]) return qrAliases[normalized];
+      if (zombieMap[normalized]) return normalized;
+      return Object.keys(zombieMap).find(key => normalized.includes(key)) || "main library";
+    }
+
+    function showSpecificZombie(zombieId) {
+      const zombie = zombieMap[zombieId];
+      currentZombieId = zombieId;
+      currentFriendName = "";
+
+      document.getElementById("zombie-reveal").innerHTML = `<div class="zombie-figure mx-auto flex items-center justify-center">${zombie.emoji}</div>`;
+      document.getElementById("zombie-name").textContent = zombie.name;
+      document.getElementById("quest-text").textContent = zombie.quest;
+      document.getElementById("qr-id-text").textContent = `QR ID: ${zombieId}`;
+      document.getElementById("scan-result").classList.remove("hidden");
+      showToast(`${zombie.name} revealed!`);
+    }
+
+    function doSoloMove() {
+      document.getElementById("scan-result").classList.add("hidden");
+      startMovementCheck();
+    }
+
+    function doGroupMove() {
+      const friend = prompt("Enter your friend's name:");
+      if (friend && friend.trim() !== "") {
+        currentFriendName = friend.trim();
+        currentZombieId = "group";
+        document.getElementById("zombie-reveal").innerHTML = `<div class="zombie-figure mx-auto flex items-center justify-center">🧟‍♂️🧟‍♀️</div>`;
+        document.getElementById("zombie-name").innerHTML = "🤝 Group High-Five Zombie";
+        document.getElementById("quest-text").innerHTML = `Do the move together with ${currentFriendName}`;
+        document.getElementById("scan-result").classList.add("hidden");
+        startMovementCheck();
+      }
+    }
+
+    function startMovementCheck() {
+      document.getElementById("camera-screen").classList.remove("hidden");
+      const video = document.getElementById("video");
+      if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+          startFakeAIAnalysis();
+        })
+        .catch(() => {
+          alert("Camera permission denied");
+          document.getElementById("camera-screen").classList.add("hidden");
+        });
+    }
+
+    function startFakeAIAnalysis() {
+      const statusText = document.getElementById("ai-status-text");
+      const progressBar = document.getElementById("ai-progress");
+      let progress = 0;
+      progressBar.style.width = "0%";
+
+      const messages = ["Detecting human pose...", "Analyzing joint angles...", "Checking movement quality...", "Evaluating form...", "Zombie virus resistance: Calculating..."];
+      let msgIndex = 0;
+
+      if (aiInterval) clearInterval(aiInterval);
+
+      aiInterval = setInterval(() => {
+        progress += Math.random() * 18 + 8;
+        if (progress > 100) progress = 100;
+        progressBar.style.width = `${progress}%`;
+
+        if (progress > 25 && msgIndex === 0) { statusText.textContent = messages[1]; msgIndex = 1; }
+        else if (progress > 50 && msgIndex === 1) { statusText.textContent = messages[2]; msgIndex = 2; }
+        else if (progress > 75 && msgIndex === 2) { statusText.textContent = messages[3]; msgIndex = 3; }
+
+        if (progress >= 100) clearInterval(aiInterval);
+      }, 420);
+    }
+
+    function finishMovementCheck() {
+      if (aiInterval) {
+        clearInterval(aiInterval);
+        aiInterval = null;
+      }
+
+      const video = document.getElementById("video");
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+
+      const isGood = Math.random() > 0.28;
+      pointsEarnedThisTime = isGood ? Math.floor(Math.random() * 40) + 70 : Math.floor(Math.random() * 25) + 25;
+
+      totalPoints += pointsEarnedThisTime;
+      document.getElementById("points-display").textContent = `${totalPoints} pts`;
+
+      document.getElementById("camera-screen").classList.add("hidden");
+
+      showSuccessScreen();
+    }
+
+    function showSuccessScreen() {
+      const zombie = currentZombieId === "group" 
+        ? { name: "Group High-Five Zombie", emoji: "🧟‍♂️🧟‍♀️" }
+        : zombieMap[currentZombieId] || { name: "Unknown Zombie", emoji: "🧟" };
+
+      document.getElementById("success-emoji").textContent = zombie.emoji;
+      document.getElementById("success-zombie-name").textContent = zombie.name;
+      document.getElementById("success-points").innerHTML = `+${pointsEarnedThisTime} POINTS`;
+
+      const friendText = currentFriendName ? `with ${currentFriendName}` : "";
+      document.getElementById("success-friend").textContent = friendText;
+
+      document.getElementById("success-screen").classList.remove("hidden");
+
+      // Save the catch
+      zombiesCaught.push({
+        id: currentZombieId,
+        name: zombie.name,
+        emoji: zombie.emoji,
+        points: pointsEarnedThisTime,
+        withFriend: currentFriendName || null
+      });
+
+      updateCollection();
+      updateLeaderboard();
+      saveCurrentPlayerToLeaderboard();
+    }
+
+    function continueHunting() {
+      document.getElementById("success-screen").classList.add("hidden");
+      currentFriendName = "";
+      setTimeout(() => {
+        startScanner();           // Go back to scanning
+      }, 300);
+    }
+
+    function leaveToMain() {
+      document.getElementById("success-screen").classList.add("hidden");
+      currentFriendName = "";
+      
+      // Stop scanner if running and go back to main view (no camera)
+      stopScanner();
+      document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+      // Optionally show a welcome message or just stay on the button bar
+      showToast("Returned to main menu. Ready for next hunt!");
+    }
+
+    function updateCollection() {
+      const grid = document.getElementById("collection-grid");
+      if (!zombiesCaught.length) {
+        grid.innerHTML = `<p class="col-span-full text-center text-zinc-400">No zombies caught yet. Scan a QR code to start.</p>`;
+        return;
+      }
+      grid.innerHTML = zombiesCaught.map((z) => `
+        <div class="smooth-panel bg-zinc-900 border border-green-500 rounded-3xl p-6 text-center">
+          <div class="text-3xl mb-4">${z.emoji}</div>
+          <h4 class="font-bold">${z.name}</h4>
+          ${z.withFriend ? `<p class="text-purple-400 text-sm">With: ${z.withFriend}</p>` : ''}
+          <p class="text-green-400">+${Number(z.points) || 0} pts</p>
+        </div>
+      `).join("");
+    }
+
+    function getLeaderboardUsers() {
+      return safeJsonParse(localStorage.getItem(LEADERBOARD_KEY), []);
+    }
+
+    function saveLeaderboardUsers(users) {
+      localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(users));
+    }
+
+    function saveCurrentPlayerToLeaderboard() {
+      if (!playerName) return;
+      const users = getLeaderboardUsers();
+      const existing = users.find((user) => user.name.toLowerCase() === playerName.toLowerCase());
+      const currentPlayerData = {
+        name: playerName,
+        points: totalPoints,
+        caught: zombiesCaught.length,
+        zombiesCaught,
+        lastPlayed: new Date().toISOString()
+      };
+      if (existing) Object.assign(existing, currentPlayerData);
+      else users.push(currentPlayerData);
+      saveLeaderboardUsers(users);
+    }
+
+    function updateLeaderboard() {
+      if (playerName) saveCurrentPlayerToLeaderboard();
+      const data = getLeaderboardUsers().sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
+      const tbody = document.getElementById("leaderboard-body");
+      if (!data.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 px-8 text-center">No player data yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = data.map((p, i) => `
+        <tr class="border-b border-zinc-700">
+          <td class="py-6 px-8 font-bold text-green-400">#${i + 1}</td>
+          <td class="py-6 px-8">${p.name}</td>
+          <td class="py-6 px-8">${Number(p.points) || 0}</td>
+          <td class="py-6 px-8">${Number(p.caught) || 0}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function showPage(page) {
+      document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
+      document.getElementById(`page-${page}`).classList.remove("hidden");
+
+      if (page === "scan") {
+        startScanner();
+      } else {
+        await stopScanner();
+      }
+
+      if (page === "collection") updateCollection();
+      if (page === "leaderboard") updateLeaderboard();
+    }
+
+    function renderQrHelp() {
+      const help = document.getElementById("qr-help");
+      help.innerHTML = Object.entries(zombieMap).map(([id, zombie]) => `
+        <div class="smooth-panel bg-black/40 rounded-2xl p-4">
+          <div class="font-bold text-green-400">${zombie.place}</div>
+          <div class="text-xl font-bold">${zombie.name}</div>
+        </div>
+      `).join("");
+    }
+
+    function setScannerStatus(message) {
+      document.getElementById("scanner-status").textContent = message;
+    }
+
+    let toastTimer = null;
+    function showToast(message) {
+      const toast = document.getElementById("toast-message");
+      toast.textContent = message;
+      toast.classList.remove("hidden");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.add("hidden"), 2200);
+    }
+
+    window.addEventListener("load", loadGame);
+  </script>
+</body>
+</html>
